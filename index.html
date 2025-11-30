@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Figure Geometriche Interattive (Mobile)</title>
+	<!-- Carica Tailwind CSS per un design moderno e mobile-first -->
+	<script src="https://cdn.tailwindcss.com"></script>
+	<style>
+		/* Impostazioni di base per il corpo e il canvas */
+		body {
+			margin: 0;
+			overflow: hidden;
+			/* Nasconde le barre di scorrimento */
+			font-family: 'Inter', sans-serif;
+			background-color: #000000;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			height: 100vh;
+			width: 100vw;
+		}
+
+		#interactiveCanvas {
+			display: block;
+			background-color: #000000;
+			/* Sfondo nero richiesto */
+			touch-action: none;
+			/* Migliora la gestione del touch */
+		}
+
+		/* Stile del messaggio in sovrimpressione */
+		#messageBox {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			padding: 1rem 2rem;
+			background-color: rgba(255, 255, 255, 0.95);
+			border-radius: 12px;
+			box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+			text-align: center;
+			color: #1f2937;
+			font-size: 1.1rem;
+			z-index: 100;
+		}
+
+		.close-button {
+			margin-top: 10px;
+			padding: 8px 15px;
+			background-color: #3b82f6;
+			color: white;
+			border: none;
+			border-radius: 8px;
+			cursor: pointer;
+			transition: background-color 0.2s;
+		}
+
+		.close-button:hover {
+			background-color: #2563eb;
+		}
+	</style>
+</head>
+
+<body>
+
+	<canvas id="interactiveCanvas"></canvas>
+
+	<div id="messageBox" class="hidden">
+		<p id="messageText"></p>
+		<button class="close-button" onclick="document.getElementById('messageBox').classList.add('hidden')">Chiudi</button>
+	</div>
+
+	<script>
+		// Configurazione delle variabili globali
+		const canvas = document.getElementById('interactiveCanvas');
+		const ctx = canvas.getContext('2d');
+		let shapes = []; // Array per contenere tutte le figure in movimento
+
+		// Colori e Tipi di Forme ammessi
+		const COLORS = ['#FF4500', '#FF0000', '#008000', '#0000FF', '#8A2BE2', '#FFFFFF', '#FFFF00']; // Arancione, Rosso, Verde, Blu, Viola, Bianco, Giallo
+		const SHAPE_TYPES = ['circle', 'square', 'triangle', 'hexagon', 'octagon'];
+		const SHAPE_SIZE = 20; // Raggio o metà lato fisso per tutte le figure
+		const INITIAL_SPEED = 1.5; // Velocità base per il movimento
+
+		// Funzione per mostrare messaggi (sostituisce alert/confirm)
+		function showMessage(text) {
+			const messageBox = document.getElementById('messageBox');
+			document.getElementById('messageText').textContent = text;
+			messageBox.classList.remove('hidden');
+		}
+
+		// --- CLASSE SHAPE (FIGURA) ---
+		class Shape {
+			constructor(x, y) {
+				this.x = x;
+				this.y = y;
+				this.r = SHAPE_SIZE; // Raggio fisso
+
+				// Assegna tipo e colore casuale
+				this.type = SHAPE_TYPES[Math.floor(Math.random() * SHAPE_TYPES.length)];
+				this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+				// Velocità casuale in x e y
+				const angle = Math.random() * 2 * Math.PI;
+				this.vx = Math.cos(angle) * INITIAL_SPEED;
+				this.vy = Math.sin(angle) * INITIAL_SPEED;
+
+				// Rotazione casuale e velocità angolare
+				this.rotation = Math.random() * 2 * Math.PI;
+				// Velocità angolare casuale (oraria o antioraria)
+				this.vr = (Math.random() * 0.05 + 0.01) * (Math.random() > 0.5 ? 1 : -1);
+			}
+
+			// Funzione per disegnare la figura sul canvas
+			draw() {
+				ctx.save();
+				ctx.fillStyle = this.color;
+				ctx.strokeStyle = this.color;
+				ctx.lineWidth = 2;
+
+				// Trasla e ruota il contesto al centro della figura
+				ctx.translate(this.x, this.y);
+				ctx.rotate(this.rotation);
+
+				ctx.beginPath();
+
+				switch (this.type) {
+					case 'circle':
+						// Cerchio
+						ctx.arc(0, 0, this.r, 0, Math.PI * 2);
+						ctx.fill();
+						break;
+					case 'square':
+						// Quadrato
+						const halfSide = this.r * Math.SQRT2 / 2;
+						ctx.fillRect(-halfSide, -halfSide, halfSide * 2, halfSide * 2);
+						break;
+					case 'triangle':
+						// Triangolo Equilatero
+						const side = this.r * 1.732; // Approssimazione lato per raggio di circoscrizione r
+						const h = side * Math.sqrt(3) / 2;
+						ctx.moveTo(0, -this.r); // Top point
+						ctx.lineTo(h / 2, this.r / 2); // Bottom right
+						ctx.lineTo(-h / 2, this.r / 2); // Bottom left
+						ctx.closePath();
+						ctx.fill();
+						break;
+					case 'hexagon':
+						// Esagono (6 lati)
+						this.drawPolygon(6);
+						break;
+					case 'octagon':
+						// Ottagono (8 lati)
+						this.drawPolygon(8);
+						break;
+				}
+
+				ctx.restore();
+			}
+
+			// Funzione generica per disegnare poligoni regolari
+			drawPolygon(sides) {
+				const angleStep = (Math.PI * 2) / sides;
+				for (let i = 0; i < sides; i++) {
+					const currentAngle = angleStep * i;
+					const pointX = this.r * Math.cos(currentAngle);
+					const pointY = this.r * Math.sin(currentAngle);
+
+					if (i === 0) {
+						ctx.moveTo(pointX, pointY);
+					} else {
+						ctx.lineTo(pointX, pointY);
+					}
+				}
+				ctx.closePath();
+				ctx.fill();
+			}
+
+			// Funzione per aggiornare posizione, rotazione e rimbalzo
+			update() {
+				// Aggiorna posizione
+				this.x += this.vx;
+				this.y += this.vy;
+
+				// Aggiorna rotazione
+				this.rotation += this.vr;
+				if (this.rotation > Math.PI * 2) this.rotation -= Math.PI * 2;
+				if (this.rotation < 0) this.rotation += Math.PI * 2;
+
+
+				// Rimbalzo orizzontale
+				if (this.x + this.r > canvas.width || this.x - this.r < 0) {
+					this.vx *= -1;
+					// Mantiene la figura all'interno
+					if (this.x - this.r < 0) this.x = this.r;
+					if (this.x + this.r > canvas.width) this.x = canvas.width - this.r;
+				}
+
+				// Rimbalzo verticale
+				if (this.y + this.r > canvas.height || this.y - this.r < 0) {
+					this.vy *= -1;
+					// Mantiene la figura all'interno
+					if (this.y - this.r < 0) this.y = this.r;
+					if (this.y + this.r > canvas.height) this.y = canvas.height - this.r;
+				}
+			}
+		}
+
+		// --- FUNZIONI DI GESTIONE ---
+
+		// Regola la dimensione del canvas per riempire la finestra (mobile-friendly)
+		function resizeCanvas() {
+			canvas.width = window.innerWidth;
+			canvas.height = window.innerHeight;
+		}
+		window.addEventListener('resize', resizeCanvas);
+		resizeCanvas();
+
+		// Aggiunge una nuova figura al click/tap
+		function addShape(event) {
+			const rect = canvas.getBoundingClientRect();
+			// Gestisce sia click del mouse che tap touch (usa il primo punto touch)
+			const clickX = event.clientX || (event.touches ? event.touches[0].clientX : null);
+			const clickY = event.clientY || (event.touches ? event.touches[0].clientY : null);
+
+			if (clickX === null || clickY === null) return;
+
+			const x = clickX - rect.left;
+			const y = clickY - rect.top;
+
+			// Assicura che la figura sia creata all'interno del canvas
+			const safeX = Math.min(Math.max(x, SHAPE_SIZE), canvas.width - SHAPE_SIZE);
+			const safeY = Math.min(Math.max(y, SHAPE_SIZE), canvas.height - SHAPE_SIZE);
+
+			shapes.push(new Shape(safeX, safeY));
+
+			// Impedisce lo scrolling sui dispositivi mobili quando si tocca il canvas
+			event.preventDefault();
+		}
+
+		// Aggiunge listener per click e tap
+		canvas.addEventListener('click', addShape);
+		canvas.addEventListener('touchstart', addShape, { passive: false });
+
+		// Calcola la distanza tra due punti
+		function distance(x1, y1, x2, y2) {
+			const dx = x1 - x2;
+			const dy = y1 - y2;
+			return Math.sqrt(dx * dx + dy * dy);
+		}
+
+		// Logica di collisione/fusione
+		function checkCollisions() {
+			const newShapes = [];
+			const mergedIndices = new Set();
+
+			// Itera attraverso tutte le coppie di figure
+			for (let i = 0; i < shapes.length; i++) {
+				if (mergedIndices.has(i)) continue; // Salta se la figura è già stata coinvolta in una fusione
+
+				for (let j = i + 1; j < shapes.length; j++) {
+					if (mergedIndices.has(j)) continue; // Salta se la figura è già stata coinvolta in una fusione
+
+					const shapeA = shapes[i];
+					const shapeB = shapes[j];
+
+					// Collisione basata sulla distanza tra i centri (somma dei raggi)
+					// Usiamo un raggio di collisione leggermente aumentato per poligoni
+					const collisionDistance = shapeA.r + shapeB.r;
+
+					if (distance(shapeA.x, shapeA.y, shapeB.x, shapeB.y) < collisionDistance) {
+						// Collisione rilevata: "unisci" formando una nuova figura
+
+						// 1. Marca le figure per la rimozione
+						mergedIndices.add(i);
+						mergedIndices.add(j);
+
+						// 2. Calcola il punto medio (nuova posizione)
+						const newX = (shapeA.x + shapeB.x) / 2;
+						const newY = (shapeA.y + shapeB.y) / 2;
+
+						// 3. Crea la nuova figura
+						const mergedShape = new Shape(newX, newY);
+						// Potrebbe ereditare velocità media per un movimento più fluido
+						mergedShape.vx = (shapeA.vx + shapeB.vx) / 2;
+						mergedShape.vy = (shapeA.vy + shapeB.vy) / 2;
+
+						newShapes.push(mergedShape);
+
+						// Una singola collisione gestita, esce dal loop interno per evitare
+						// che la stessa figura (i) collida con un'altra (k) subito dopo.
+						break;
+					}
+				}
+			}
+
+			// Filtra le figure che non sono state coinvolte nella fusione
+			const remainingShapes = shapes.filter((_, index) => !mergedIndices.has(index));
+
+			// Aggiorna l'array delle figure: rimaste + nuove fuse
+			shapes = remainingShapes.concat(newShapes);
+
+			if (newShapes.length > 0) {
+				console.log(`Fusioni avvenute: ${newShapes.length}. Totale forme: ${shapes.length}`);
+			}
+		}
+
+
+		// --- LOOP DI ANIMAZIONE PRINCIPALE ---
+		function animate() {
+			// Cancella tutto il canvas ad ogni frame
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+			// Controllo e gestione delle collisioni
+			checkCollisions();
+
+			// Aggiorna e disegna tutte le figure
+			for (let i = 0; i < shapes.length; i++) {
+				shapes[i].update();
+				shapes[i].draw();
+			}
+
+			// Richiede il prossimo frame di animazione
+			requestAnimationFrame(animate);
+		}
+
+		// Avvia l'animazione al caricamento completo della pagina
+		window.onload = function () {
+			animate();
+			// Mostra un messaggio di istruzione al primo avvio
+			showMessage("Benvenuto! Tocca o clicca in qualsiasi punto dello schermo per generare figure geometriche. Quando due figure si scontrano, si fondono in una nuova forma!");
+		};
+
+	</script>
+
+</body>
+
+</html>
